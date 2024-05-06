@@ -1,0 +1,9 @@
+axes.titlesize : 18
+axes.labelsize : 16
+xtick.labelsize : 18
+ytick.labelsize : 18
+legend.title_fontsize : 14
+figure.figsize : 10,6
+axes.linewidth : 2
+axes.edgecolor : 'black'
+lines.linewidth: 2

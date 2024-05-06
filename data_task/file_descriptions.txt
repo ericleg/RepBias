@@ -1,0 +1,30 @@
+task_structure.csv: contains properties of the task
+    - block: block number
+    - trial: trial number
+    - bonus: indicator variable for blocks with probabilistic bonus
+
+
+trial_sequence_rewards.csv: contains the expected trial rewards for each sequence of actions (incl. probabilistic bonus for DAS)
+    - rows: trials
+    - columns: sequence of actions IDs
+
+grid_patterns.csv: contains the patterns of the used grid
+	- rows: grids
+	- columns: points of the fields (from top left to bottom right)
+
+get_sequences_rewards.ipynb: Definition of possible sequences of actions and calculation of expected rewards
+
+This script finds all possible sequences of actions given the task design. (Until now, it just works for square grids). This result is saved. Based on these sequences of actions, the grid pattern, and the trial goals expected rewards are calculated.
+
+Y-Navigation task: The grid has a size of 5x5. Each sequence of actions contains of exactly four moves. The agent always starts in the middle of the grid. It is not possible to revisit fields or to leave the grid. Three moves are possible: straight down, diagonal up left, and diagonal up right. The task comprises 16 blocks with 20 trials each. A different grid pattern is used for each block. Also trial goals change trial-wise. The expected reward is defined by the difference between the trial goals and the sum of the collected points. At the end also the goal points sets are plotted.
+
+Creates: sequences.pkl, trial_sequence_rewards.csv
+
+
+sequences.pkl: contains to numpy arrays
+	- (1) all possible sequences encoded with the moves (0: up left diagonal, 1: down straight, 2: up right diagonal)
+	- (2) the visited fields of each sequence of actions encoded as 4x2 matrix for each sequence of actions encoding the field positions from [0,0] top left to [4,4] bottom right
+
+trial_sequence_rewards.csv: contains numpy array with the expected rewards for each sequence of actions for each trial
+	- rows: trials
+	- columns: sequence IDs (from sequences.pkl) 
