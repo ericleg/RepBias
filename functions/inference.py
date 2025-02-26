@@ -4,6 +4,41 @@ import pymc as pm
 import arviz as az
 from functions import preparation
 
+def inference_random_group(df, trialRewards):
+    '''Get log-likelihoods of random response model for model comparison
+    
+    parameters:
+    -----------
+    df: pandas df, len=nTrials*nParticipants
+    df with choices (i.e. sequence IDs)
+
+    trialRewards: numpy array, size=(ntrials, nActions)
+    matrix that codes the expected reward for each sequence of action pi at each trial t
+
+    returns:
+    -------
+    dfInferenceData: inference data object
+    including: observations, posterior distributions, log likelihoods, PPC, sampling stats
+    '''
+
+    # preparation
+    # get number of possible sequences of actions
+    _, nActions = trialRewards.shape
+
+    with pm.Model() as RM:
+
+        p = np.ones(nActions)/nActions # set uniform choice probabilities
+
+        # likelihood
+        Y = pm.Categorical('Y', p=p, observed=df['sequence_ID'])
+
+        iData = pm.sample(idata_kwargs={'log_likelihood':True}, progressbar=False)
+
+        pm.sample_posterior_predictive(iData, extend_inferencedata=True, progressbar=False) # add PPC
+
+    return iData
+
+
 def inference_EVM_group(df, trialRewards, *args):
     '''Parameter inference for all participants simultaneously with EVM.
     
@@ -170,75 +205,6 @@ def inference_EVPRM_group(df, trialRewards, DASIdx):
         
     return iData
 
-def inference_EVPRMnonDAS_group(df, trialRewards, DASIdx):
-    '''Parameter inference just for non-DAS trials for all participants simultaneously with EVPRM.
-    
-    parameters
-    ----------
-    df: pandas df, len=nTrials*nParticipants
-    df with choices (i.e. sequence IDs)
-
-    trialRewards: numpy array, size=(ntrials, nActions)
-    matrix that codes the expected reward for each sequence of action pi at each trial t
-
-    DASIdx: int
-    sequence ID of default action sequence (DAS)
-    
-    returns
-    -------
-    dfInferenceData: inference data object
-    including: observations, posterior distributions, log likelihoods, PPC, sampling stats'''
-
-    # get used sequences matrix (participant-level)
-    _, nActions = trialRewards.shape
-    usedSequencesMatrix = preparation.get_used_sequences_group(df, nActions, DASIdx)
-
-    # get cumulative sequence matrix (participant-level)
-    cumChoicesMatrix = preparation.get_cumulative_used_sequences_group(df, nActions)
-
-    # get number of participants
-    nParticipants = len(set(df['Participant_ID']))
-
-    # select just non-DAS trials by using a masked array
-    mask = df['sequence_ID']==DASIdx
-    mask = mask.to_numpy()
-    # maskedData = np.ma.masked_array(df['sequence_ID'], mask=mask)
-
-    with pm.Model() as EVPRMnonDAS:
-        # priors for free parameters     
-        beta = pm.Gamma('beta', alpha=3, beta=1, shape=nParticipants)
-        R0 = pm.Gamma('R0', alpha=55, beta=.75, shape=nParticipants) # approximated reward for yet unexploited action sequences
-        h = pm.Beta('h', alpha=3, beta=3, shape=nParticipants) # habitual tendency [0,1]
-
-        # define habitual contribution (i.e. prior)
-        alpha = 1/h # transform habitual tendency to get initial alpha
-        # define prior as 3D matrix: participant x trial x action sequence
-        prior = (cumChoicesMatrix+alpha[:, np.newaxis, np.newaxis])/pm.math.sum(cumChoicesMatrix+alpha[:, np.newaxis, np.newaxis], axis=2)[:, :, np.newaxis]    
-        
-        # define contribution of expected rewards (EVs)
-        # create 3D matrix with real EV if actions sequence was already used during curren block or R0 otherwise
-        trialRewardsAgent = pm.math.switch(pm.math.eq(usedSequencesMatrix,1), trialRewards, R0[:, np.newaxis, np.newaxis])
-        trialRewardsAgent += 1e-10 # increases stability of inference by avoiding rewards of exactly 0
-
-        # calculate probabilities
-        thing = trialRewardsAgent**beta[:, np.newaxis, np.newaxis]*prior 
-        p = thing/pm.math.sum(thing, axis=2)[:, :, np.newaxis] # normalize
-        # convert p from 3D to 2D (trial x action sequence) to match the shape of the observations of likelihood
-        p = p.reshape((-1, nActions))
-        
-        # implement mask
-        #pNonDAS = pm.MutableData('pNonDAS', p[mask])
-        YobsNonDAS = pm.MutableData('ObsNonDAS', df['sequence_ID'].to_numpy()[mask])
-
-        # likelihood
-        Y = pm.Categorical('Y_nonDAS', p=p[mask], observed=YobsNonDAS)
-
-        # sample posterior with MCMC (and save log likelihood for LOO calculation)
-        iData = pm.sample(idata_kwargs={'log_likelihood':True}, progressbar=False)
-
-        pm.sample_posterior_predictive(iData, extend_inferencedata=True, progressbar=False) # add PPC
-        
-    return iData
 
 def inference_EVPRM_v2_group(df, trialRewards, DASIdx):
     '''Parameter inference for all participants simultaneously with EVPRM.
